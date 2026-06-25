@@ -67,6 +67,28 @@ FINAL_SCHEMA_FIELDS = (
     ("calibration_deltaR_a", np.float32, np.nan),
     ("calibration_deltaR_b", np.float32, np.nan),
     ("calibration_deltaR_sum", np.float32, np.nan),
+    # ------------------------------------------------------------------
+    # Per-event topology + per-leg ID needed by the downstream Ztautau_ll
+    # calibration pipeline (scale + smear + SBfit tag-and-probe SF on the
+    # Ztautau_ee/Ztautau_mumu regions, then applied on zee/zmumu). These
+    # carry through unmodified from the upstream shards. `numeric_field`
+    # fills with the listed default when a field is missing from the input.
+    # ------------------------------------------------------------------
+    ("is_leading_OS", bool, False),
+    ("charged_E", np.float32, np.nan),
+    ("P_rad", np.float32, np.nan),
+    ("lead_a_pdgId", np.int32, 0),
+    ("lead_b_pdgId", np.int32, 0),
+    ("lead_a_hpcTotalShowerEnergy", np.float32, np.nan),
+    ("lead_b_hpcTotalShowerEnergy", np.float32, np.nan),
+    ("lead_a_E_over_p", np.float32, np.nan),
+    ("lead_b_E_over_p", np.float32, np.nan),
+    ("lead_a_raw_muon_tag", np.int32, 0),
+    ("lead_b_raw_muon_tag", np.int32, 0),
+    ("lead_a_is_electron", bool, False),
+    ("lead_b_is_electron", bool, False),
+    ("lead_a_is_muon", bool, False),
+    ("lead_b_is_muon", bool, False),
 )
 
 
@@ -732,6 +754,14 @@ def final_qi_events(events: ak.Array, sample_name: str, regions: list[str]) -> a
 
     fields["flags_valid"] = numeric_field(events, "flags_valid", bool, False)
     fields["mmc_likelihood"] = numeric_field(events, "mmc_likelihood", np.float32, 0.0)
+    # Per-leg visible 4-vectors are Momentum4D records, not flat numeric
+    # arrays, so they cannot go through `numeric_field` / FINAL_SCHEMA_FIELDS.
+    # Pass them through as-is when present in input (needed by downstream
+    # scale/smear and SBfit, which read `lead_a_visible_p4` / `lead_b_visible_p4`
+    # for per-leg p/eta/phi and pair mass).
+    for vec_name in ("lead_a_visible_p4", "lead_b_visible_p4"):
+        if vec_name in events.fields:
+            fields[vec_name] = events[vec_name]
     for region in regions:
         fields[f"{region}_cut"] = numeric_field(events, f"{region}_cut", bool, False)
     return ak.Array(fields)
